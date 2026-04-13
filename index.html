@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DermAI • Skin Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap');
+        
+        body { font-family: 'Inter', system_ui, sans-serif; }
+        .header-font { font-family: 'Playfair Display', sans-serif; }
+        .derm-gradient { background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%); }
+        
+        .upload-zone {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .upload-zone.dragover {
+            border-color: #14b8a6;
+            background: #f0fdfa;
+            transform: scale(1.02);
+        }
+        
+        .result-panel {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .diagnosis-block {
+            animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .confidence-badge {
+            transition: all 0.3s ease;
+        }
+        
+        .dropdown-summary {
+            transition: all 0.3s ease;
+        }
+        .dropdown-summary[open] .arrow {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Navbar -->
+    <nav class="derm-gradient text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl">🧬</div>
+                <div>
+                    <h1 class="header-font text-3xl tracking-tighter">DermAI</h1>
+                    <p class="text-teal-100 text-sm -mt-1">Llama-4 Scout Vision</p>
+                </div>
+            </div>
+            <a onclick="showDisclaimer()" class="text-sm font-medium hover:text-teal-200 flex items-center gap-1">
+                <i class="fa-solid fa-shield-halved"></i> Medical Disclaimer
+            </a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-6 py-10">
+        <div class="grid md:grid-cols-12 gap-8">
+            
+            <!-- LEFT: Upload Section -->
+            <div class="md:col-span-7 bg-white rounded-3xl shadow-xl p-8">
+                <h2 class="text-4xl header-font tracking-tighter text-slate-800 mb-1">Skin Analysis</h2>
+                <p class="text-slate-600 mb-8">Upload a clear photo of the affected area for instant AI analysis</p>
+                
+                <div id="upload-zone"
+                     onclick="document.getElementById('file-input').click()"
+                     class="upload-zone border-4 border-dashed border-teal-300 rounded-3xl p-8 min-h-[460px] flex flex-col items-center justify-center cursor-pointer relative">
+                    
+                    <input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleFile(this)">
+                    
+                    <!-- Upload Prompt -->
+                    <div id="upload-prompt" class="text-center">
+                        <i class="fa-solid fa-cloud-arrow-up text-7xl text-teal-400 mb-6"></i>
+                        <p class="text-2xl font-semibold text-slate-700">Drop your image here</p>
+                        <p class="text-slate-500 mt-2">or click to browse • JPG, PNG • Good lighting recommended</p>
+                    </div>
+                    
+                    <!-- Preview + Button -->
+                    <div id="preview-area" class="hidden w-full">
+                        <div class="flex justify-center bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100">
+                            <img id="image-preview" class="max-h-[340px] w-full max-w-md rounded-2xl shadow-md object-contain" alt="Preview">
+                        </div>
+                        
+                        <div class="flex justify-center gap-4">
+                            <button onclick="clearImage()" 
+                                    class="flex items-center gap-2 px-7 py-3.5 text-slate-600 hover:text-red-600 font-medium transition-colors">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Change Image
+                            </button>
+                            <button onclick="analyzeImage()" 
+                                    class="bg-teal-600 hover:bg-teal-700 text-white px-10 py-3.5 rounded-2xl font-semibold flex items-center gap-3 shadow-lg shadow-teal-300 transition-all active:scale-95">
+                                <i class="fa-solid fa-microscope"></i>
+                                ANALYZE SKIN
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- RIGHT: Diagnosis Section -->
+            <div class="md:col-span-5">
+                <div id="result-panel" class="hidden result-panel bg-white rounded-3xl shadow-xl p-8 h-full">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-semibold flex items-center gap-2">
+                            <i class="fa-solid fa-file-medical text-teal-500"></i> Analysis Result
+                        </h3>
+                        <button onclick="resetAll()" 
+                                class="text-slate-500 hover:text-teal-600 flex items-center gap-1 text-sm font-medium">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> New Analysis
+                        </button>
+                    </div>
+                    
+                    <div id="result-content" class="space-y-8"></div>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="empty-state" class="bg-white rounded-3xl shadow-xl p-12 h-full flex flex-col items-center justify-center text-center border border-slate-100">
+                    <div class="text-8xl mb-6 opacity-70">🔬</div>
+                    <h3 class="text-2xl font-semibold text-slate-700">Your diagnosis appears here</h3>
+                    <p class="text-slate-500 mt-3 max-w-xs">Upload a clear skin image on the left to get instant, detailed AI analysis</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFile = null;
+        let currentImageUrl = null;
+
+        function handleFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            currentFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageUrl = e.target.result;
+                document.getElementById('upload-prompt').classList.add('hidden');
+                document.getElementById('preview-area').classList.remove('hidden');
+                document.getElementById('image-preview').src = currentImageUrl;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearImage() {
+            currentFile = null;
+            document.getElementById('upload-prompt').classList.remove('hidden');
+            document.getElementById('preview-area').classList.add('hidden');
+            document.getElementById('file-input').value = '';
+        }
+
+        async function analyzeImage() {
+            if (!currentFile) return alert("Please upload an image first");
+
+            const resultPanel = document.getElementById('result-panel');
+            const emptyState = document.getElementById('empty-state');
+            emptyState.classList.add('hidden');
+            resultPanel.classList.remove('hidden');
+
+            document.getElementById('result-content').innerHTML = `
+                <div class="flex flex-col items-center py-16">
+                    <i class="fa-solid fa-spinner fa-spin text-6xl text-teal-500 mb-6"></i>
+                    <p class="text-lg font-medium">Analyzing with Llama-4 Scout Vision...</p>
+                </div>
+            `;
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+
+            try {
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) throw new Error("Server error");
+
+                const data = await res.json();
+                renderDiagnosis(data);
+
+            } catch (err) {
+                document.getElementById('result-content').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 text-red-700 p-8 rounded-3xl text-center">
+                        Could not connect to the server.<br>
+                        Make sure app.py is running on port 8000.
+                    </div>
+                `;
+            }
+        }
+
+        function renderDiagnosis(data) {
+            const content = document.getElementById('result-content');
+            
+            // Parse the full_report
+            const report = data.full_report || "";
+            const diagnosisMatch = report.match(/\*\*Diagnosis:\*\*\s*(.+?)(?:\n|$)/);
+            const confidenceMatch = report.match(/\*\*Confidence:\*\*\s*(High|Medium|Low)/i);
+            
+            const diagnosisText = diagnosisMatch ? diagnosisMatch[1].trim() : "Skin Condition";
+            let confidenceText = confidenceMatch ? confidenceMatch[1].trim() : "Medium";
+            
+            // Clean the full description (remove the first two lines)
+            let description = report
+                .replace(/\*\*Diagnosis:\*\*.*?\n/, '')
+                .replace(/\*\*Confidence:\*\*.*?\n/, '')
+                .replace(/\*\*Analysis:\*\*.*?\n?/, '')
+                .trim();
+
+            // Confidence color
+            let confColor = "yellow";
+            let confIcon = "fa-circle";
+            if (confidenceText.toLowerCase() === "high") {
+                confColor = "emerald";
+                confIcon = "fa-check-circle";
+            } else if (confidenceText.toLowerCase() === "low") {
+                confColor = "red";
+                confIcon = "fa-triangle-exclamation";
+            }
+
+            content.innerHTML = `
+                <!-- 1. Huge Diagnosis Block -->
+                <div class="diagnosis-block bg-gradient-to-r from-teal-50 to-white border border-teal-100 rounded-3xl p-8 text-center">
+                    <h1 class="text-5xl font-bold text-slate-800 leading-none">${diagnosisText}</h1>
+                </div>
+
+                <!-- 2. Confidence -->
+                <div class="flex justify-center">
+                    <div class="confidence-badge inline-flex items-center gap-3 bg-white border border-slate-200 shadow-sm px-8 py-3 rounded-3xl text-lg font-semibold">
+                        <i class="fa-solid ${confIcon} text-${confColor}-500"></i>
+                        <span>Confidence:</span>
+                        <span class="text-${confColor}-600">${confidenceText}</span>
+                    </div>
+                </div>
+
+                <!-- 3. Dropdown Description -->
+                <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                    <details class="group">
+                        <summary class="dropdown-summary flex items-center justify-between px-8 py-5 text-lg font-semibold cursor-pointer hover:bg-slate-50">
+                            Detailed Analysis
+                            <i class="fa-solid fa-chevron-down arrow transition-transform text-teal-500"></i>
+                        </summary>
+                        <div class="px-8 pb-8 pt-2 text-slate-600 leading-relaxed whitespace-pre-wrap">
+                            ${description || "No additional details available."}
+                        </div>
+                    </details>
+                </div>
+
+                <div class="text-[10px] text-slate-400 text-center mt-6">
+                    ${data.note || "Powered by Groq Llama-4 Scout Vision • Not a medical diagnosis"}
+                </div>
+            `;
+        }
+
+        function resetAll() {
+            clearImage();
+            document.getElementById('result-panel').classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+        }
+
+        function showDisclaimer() {
+            alert("⚠️ This is an AI demonstration tool.\n\nIt is NOT a substitute for professional medical advice.\nAlways consult a qualified dermatologist.");
+        }
+
+        // Drag & Drop
+        const zone = document.getElementById('upload-zone');
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                currentFile = file;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    currentImageUrl = ev.target.result;
+                    document.getElementById('upload-prompt').classList.add('hidden');
+                    document.getElementById('preview-area').classList.remove('hidden');
+                    document.getElementById('image-preview').src = currentImageUrl;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+</body>
+</html>
