@@ -16,10 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Check API Key at startup
+# Load Groq API Key
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    print("❌ CRITICAL ERROR: GROQ_API_KEY environment variable is missing!")
+    print("❌ CRITICAL: GROQ_API_KEY environment variable is missing!")
 else:
     print("✅ GROQ_API_KEY loaded successfully")
 
@@ -32,7 +32,7 @@ async def serve_home():
         with open("index.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "<h1 style='color:red'>Error: index.html file not found in the project root.</h1>"
+        return "<h1 style='color:red;text-align:center;margin-top:50px'>Error: index.html not found</h1>"
 
 @app.post("/predict")
 async def predict_skin_disease(file: UploadFile = File(...)):
@@ -46,8 +46,9 @@ async def predict_skin_disease(file: UploadFile = File(...)):
         ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
         mime_type = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
 
+        # Clean multi-line prompt
         prompt = """You are an expert dermatologist AI.
-Analyze the uploaded skin image and respond in this exact structured format:
+Analyze the uploaded skin image carefully and respond in this exact structured format:
 
 **Diagnosis:** Healthy / Normal Skin or [Specific Condition Name]
 
@@ -60,7 +61,9 @@ Analyze the uploaded skin image and respond in this exact structured format:
 - Home care / Skincare tips
 - Red flags - When to see a dermatologist immediately
 
-Always end with: "This is an AI-generated analysis for educational purposes only. Please consult a qualified dermatologist for proper medical advice.""""
+Always end with: "This is an AI-generated analysis for educational purposes only. Please consult a qualified dermatologist for proper medical advice."
+
+Be clear, professional and accurate."""
 
         response = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
