@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from groq import Groq
 from dotenv import load_dotenv
 import os
@@ -9,12 +8,8 @@ import base64
 
 load_dotenv()
 
-app = FastAPI(
-    title="DermAI • Skin Analyzer",
-    description="Groq Llama-4 Scout Vision Skin Disease Analyzer"
-)
+app = FastAPI(title="DermAI")
 
-# CORS - allows your frontend to call the backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,7 +20,7 @@ app.add_middleware(
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Serve index.html at root "/"
+# Serve the frontend
 @app.get("/", response_class=HTMLResponse)
 async def serve_home():
     with open("index.html", "r", encoding="utf-8") as f:
@@ -42,7 +37,21 @@ async def predict_skin_disease(file: UploadFile = File(...)):
         ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
         mime_type = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
 
-        prompt = """You are an expert dermatologist AI... [your full prompt from previous version]"""
+        prompt = """You are an expert dermatologist AI.
+Analyze the uploaded skin image and respond in this exact structured format:
+
+**Diagnosis:** Healthy / Normal Skin or [Specific Condition Name]
+
+**Confidence:** High / Medium / Low
+
+**Analysis:**
+- Brief description of what is seen
+- Likely causes or contributing factors
+- Recommended treatments or medicines
+- Home care / Skincare tips
+- Red flags - When to see a dermatologist immediately
+
+Always end with: "This is an AI-generated analysis for educational purposes only. Please consult a qualified dermatologist for proper medical advice.""""
 
         response = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -64,11 +73,3 @@ async def predict_skin_disease(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "model": "Llama-4 Scout Vision"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
