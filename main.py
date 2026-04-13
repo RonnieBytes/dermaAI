@@ -2,11 +2,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
-from dotenv import load_dotenv
 import os
 import base64
-
-load_dotenv()
 
 app = FastAPI(title="DermAI - Skin Analyzer")
 
@@ -19,16 +16,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# Check API Key at startup
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    print("❌ CRITICAL ERROR: GROQ_API_KEY environment variable is missing!")
+else:
+    print("✅ GROQ_API_KEY loaded successfully")
 
-# Serve the frontend at root
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+# Serve frontend
 @app.get("/", response_class=HTMLResponse)
 async def serve_home():
     try:
         with open("index.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "<h1>Error: index.html not found</h1>"
+        return "<h1 style='color:red'>Error: index.html file not found in the project root.</h1>"
 
 @app.post("/predict")
 async def predict_skin_disease(file: UploadFile = File(...)):
@@ -43,7 +47,7 @@ async def predict_skin_disease(file: UploadFile = File(...)):
         mime_type = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
 
         prompt = """You are an expert dermatologist AI.
-Analyze the uploaded skin image carefully and respond in this exact structured format:
+Analyze the uploaded skin image and respond in this exact structured format:
 
 **Diagnosis:** Healthy / Normal Skin or [Specific Condition Name]
 
@@ -56,9 +60,7 @@ Analyze the uploaded skin image carefully and respond in this exact structured f
 - Home care / Skincare tips
 - Red flags - When to see a dermatologist immediately
 
-Always end with: "This is an AI-generated analysis for educational purposes only. Please consult a qualified dermatologist for proper medical advice."
-
-Be clear, professional and accurate."""
+Always end with: "This is an AI-generated analysis for educational purposes only. Please consult a qualified dermatologist for proper medical advice.""""
 
         response = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -66,10 +68,7 @@ Be clear, professional and accurate."""
                 "role": "user",
                 "content": [
                     {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
-                    }
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
                 ]
             }],
             max_tokens=1024,
