@@ -23,6 +23,12 @@ if not GROQ_API_KEY:
 else:
     print("✅ GROQ_API_KEY loaded successfully")
 
+#groq_client = Groq(api_key=GROQ_API_KEY)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    raise RuntimeError("❌ GROQ_API_KEY not set in environment variables")
+
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # Serve frontend
